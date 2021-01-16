@@ -38,7 +38,7 @@ func LoggingConfig(logFormat string, logLevel string, logOutput string) {
 	case "DBG", "DEBUG":
 		log.SetLevel(log.DebugLevel)
 	default:
-		log.SetLevel(log.InfoLevel)
+		log.SetLevel(log.DebugLevel)
 	}
 
 	log.Infof("LogLevel is set to %v", log.GetLevel())
