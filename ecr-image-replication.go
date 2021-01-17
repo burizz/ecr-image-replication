@@ -19,9 +19,14 @@ func init() {
 func main() {
 	// TODO: Get Docker images from env variable passed into Docker
 	//dockerImages = os.Getenv("DOCKER_IMAGES")
-	var dockerImages = []string{"alpine:latest", "scratch", "alpine:3.12.3"}
-	for _, image := range dockerImages {
-		log.Infof("Test pull Image: %s", image)
-		docker.PullImage(image, "")
+	var dockerImages = []string{"hello-world:latest"}
+	for _, imageTag := range dockerImages {
+		log.Infof("Pulling image [%v]", imageTag)
+		if imagePullErr := docker.PullImage(imageTag); imagePullErr != nil {
+			log.Fatalf("Error: %v", imagePullErr)
+		}
+	}
+	if listImageErr := docker.ListImages(); listImageErr != nil {
+		log.Errorf("Error: %v", listImageErr)
 	}
 }

@@ -7,43 +7,58 @@ import (
 	"os"
 
 	"github.com/docker/docker/api/types"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/burizz/ecr-image-replication/config"
+	log "github.com/sirupsen/logrus"
 )
 
-func PullImage(imageName string, imageTag string) (imagePullErr error) {
+// PullImage - download remote Docker image
+func PullImage(imageTag string) (imagePullErr error) {
 	dockerCtx := context.Background()
 
 	dockerClient, initClientErr := config.DockerClientInit()
 	if initClientErr != nil {
-		//TODO: Fix proper exit if cannot init Docker client
-		log.Fatalf("Err")
+		return initClientErr
 	}
 
-	// TODO: move to docker package
-	reader, dockerPullErr := dockerClient.ImagePull(dockerCtx, "apline", types.ImagePullOptions{})
+	// ImagePull makes an API request to Docker daemon to pull the image, we don't actually pull it and store it ourselves here
+	reader, dockerPullErr := dockerClient.ImagePull(dockerCtx, imageTag, types.ImagePullOptions{})
+	defer reader.Close()
 	if dockerPullErr != nil {
-		log.Errorf("Err: Cannot download image: %v", dockerPullErr)
+		return fmt.Errorf("cannot download image: %v", dockerPullErr)
 	}
-	// TODO: figure this out
+	// Sends ImagePull output via reader - to show download progress
 	io.Copy(os.Stdout, reader)
+
+	// TODO: convert this output line by line to a logrus event
+	//contents, readOutputErr := ioutil.ReadAll(reader)
+	//if readOutputErr != nil {
+	//return fmt.Errorf("cannot read docker pull output: %v", readOutputErr)
+	//}
+
+	log.Infof("Test: %v", string(contents))
+
+	return nil
 }
 
-func ListImages() error {
+// ListImages - display local Docker images
+func ListImages() (listImagesErr error) {
 	dockerCtx := context.Background()
 
 	dockerClient, initClientErr := config.DockerClientInit()
 	if initClientErr != nil {
-		//TODO: Fix proper exit if cannot init Docker client
-		log.Fatalf("Err")
+		return initClientErr
 	}
 
 	images, listImageErr := dockerClient.ImageList(dockerCtx, types.ImageListOptions{})
 	if listImageErr != nil {
-		log.Errorf("Err: Cannot list images: %v", listImageErr)
+		return fmt.Errorf("cannot list images: %v", listImageErr)
 	}
+
 	for _, image := range images {
-		fmt.Println(image.ID)
+		log.Debugf("Image id: %v", image.ID)
+		log.Infof("Image tag: %v", image.RepoTags)
 	}
+
+	return nil
 }

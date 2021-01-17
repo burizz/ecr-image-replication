@@ -6,6 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// LoggingConfig - configure log level, format and output
 func LoggingConfig(logFormat string, logLevel string, logOutput string) {
 	switch logFormat {
 	case "TEXT", "TXT":
