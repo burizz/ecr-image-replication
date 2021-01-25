@@ -20,18 +20,26 @@ func main() {
 	// TODO: Get Docker images from env variable passed into Docker
 	//dockerImages = os.Getenv("DOCKER_IMAGES")
 	var dockerImages = []string{"hello-world:latest"}
-	var ecrRegistry = ""
+	var ecrRegistry = "235694435776.dkr.ecr.us-east-1.amazonaws.com/image-replication"
 
-	// Pull images
 	for _, imageTag := range dockerImages {
+		// Pull images
 		log.Infof("Pulling image [%v]", imageTag)
 		if imagePullErr := docker.PullImage(imageTag); imagePullErr != nil {
 			log.Errorf("Error: %v", imagePullErr)
 		}
 
-		ok, imageTagErr := docker.TagImage(imageTag, ecrRegistry)
+		ecrImageTag := ecrRegistry + "/" + imageTag
+
+		// Change image tag
+		ok, imageTagErr := docker.TagImage(imageTag, ecrImageTag)
 		if !ok || imageTagErr != nil {
 			log.Errorf("Error: %v", imageTagErr)
+		}
+
+		// Push image to ECR
+		if pushImageErr := docker.PushImage(ecrImageTag); pushImageErr != nil {
+			log.Errorf("Error: %v", pushImageErr)
 		}
 	}
 
