@@ -5,6 +5,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/burizz/ecr-image-replication/aws"
 	"github.com/burizz/ecr-image-replication/config"
 	"github.com/burizz/ecr-image-replication/docker"
 )
@@ -21,6 +22,10 @@ func main() {
 	//dockerImages = os.Getenv("DOCKER_IMAGES")
 	var dockerImages = []string{"hello-world:latest"}
 	var ecrRegistry = "235694435776.dkr.ecr.us-east-1.amazonaws.com/image-replication"
+
+	if loginToEcrErr := aws.LoginToECR(); loginToEcrErr != nil {
+		log.Errorf("Error: %v", loginToEcrErr)
+	}
 
 	for _, imageTag := range dockerImages {
 		// Pull images
