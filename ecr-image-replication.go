@@ -23,9 +23,14 @@ func main() {
 	var dockerImages = []string{"hello-world:latest"}
 	var ecrRegistry = "235694435776.dkr.ecr.us-east-1.amazonaws.com/image-replication"
 
-	if loginToEcrErr := aws.LoginToECR(); loginToEcrErr != nil {
-		log.Errorf("Error: %v", loginToEcrErr)
+	ecrAuthToken, getEcrTokenErr := aws.GetECRAuthToken()
+	if getEcrTokenErr != nil {
+		log.Errorf("Error: %v", getEcrTokenErr)
 	}
+
+	//if dockerLoginErr := docker.LoginToRegistry(ecrAuthToken, ecrRegistry); dockerLoginErr != nil {
+	//log.Errorf("Error: %v", dockerLoginErr)
+	//}
 
 	for _, imageTag := range dockerImages {
 		// Pull images
@@ -43,7 +48,7 @@ func main() {
 		}
 
 		// Push image to ECR
-		if pushImageErr := docker.PushImage(ecrImageTag); pushImageErr != nil {
+		if pushImageErr := docker.PushImage(ecrImageTag, ecrAuthToken); pushImageErr != nil {
 			log.Errorf("Error: %v", pushImageErr)
 		}
 	}

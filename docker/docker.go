@@ -2,6 +2,8 @@ package docker
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +13,8 @@ import (
 	"github.com/burizz/ecr-image-replication/config"
 	log "github.com/sirupsen/logrus"
 )
+
+//TODO: implement interface and struct to make these methods
 
 // PullImage - download remote Docker image
 func PullImage(imageTag string) (imagePullErr error) {
@@ -80,7 +84,7 @@ func TagImage(sourceImageTag string, targetImageTag string) (ok bool, imageTagEr
 }
 
 // PushImage - to private registry; image must already have tag which references the registry, e.g. registry.example.com/myimage:latest
-func PushImage(imageTag string) (imagePushErr error) {
+func PushImage(imageTag string, authToken string) (imagePushErr error) {
 	dockerCtx := context.Background()
 
 	dockerClient, initClientErr := config.DockerClientInit()
@@ -88,7 +92,24 @@ func PushImage(imageTag string) (imagePushErr error) {
 		return initClientErr
 	}
 
-	reader, imagePushErr := dockerClient.ImagePush(dockerCtx, imageTag, types.ImagePushOptions{})
+	// TODO: figure out how to login to ECR with token
+	//authConfig := types.AuthConfig{
+	//RegistryToken: authToken,
+	//}
+
+	authConfig := types.AuthConfig{
+		Username: "AWS",
+		Password: authToken,
+	}
+
+	encodedJSON, jsonMarshallErr := json.Marshal(authConfig)
+	if jsonMarshallErr != nil {
+		return fmt.Errorf("cannot marshal AuthConfig json: %v", jsonMarshallErr)
+	}
+
+	authString := base64.URLEncoding.EncodeToString(encodedJSON)
+
+	reader, imagePushErr := dockerClient.ImagePush(dockerCtx, imageTag, types.ImagePushOptions{RegistryAuth: authString})
 	if imagePushErr != nil {
 		return fmt.Errorf("cannot push image: %v, %v", imageTag, imagePushErr)
 	}
@@ -100,8 +121,8 @@ func PushImage(imageTag string) (imagePushErr error) {
 	return nil
 }
 
-// DockerLogin - to registry
-func DockerLogin(registryName string) (dockerLoginErr error) {
+// LoginToRegistry - authenticates docker to registry
+func LoginToRegistry(registryName, authToken string) (dockerLoginErr error) {
 	dockerCtx := context.Background()
 
 	dockerClient, initClientErr := config.DockerClientInit()
@@ -109,7 +130,12 @@ func DockerLogin(registryName string) (dockerLoginErr error) {
 		return initClientErr
 	}
 
-	auth, dockerLoginErr := dockerClient.RegistryLogin(dockerCtx, types.AuthConfig{})
+	authConfig := types.AuthConfig{
+		Username: "AWS",
+		Password: authToken,
+	}
+
+	auth, dockerLoginErr := dockerClient.RegistryLogin(dockerCtx, authConfig)
 	if dockerLoginErr != nil {
 		return fmt.Errorf("cannot login to docker registry %v ; %v", registryName, dockerLoginErr)
 	}

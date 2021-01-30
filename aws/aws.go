@@ -8,10 +8,11 @@ import (
 	"github.com/burizz/ecr-image-replication/config"
 )
 
-func LoginToECR() (ecrLoginErr error) {
-	ecrClient, ecrInitErr := config.ECRClientInit("us-east-1")
-	if ecrInitErr != nil {
-		return ecrInitErr
+// GetECRAuthToken - retrieves the authentication from ECR token to be used by docker login
+func GetECRAuthToken() (authToken string, getAuthTokenErr error) {
+	ecrClient, ecrClientInitErr := config.ECRClientInit("us-east-1")
+	if ecrClientInitErr != nil {
+		return "", ecrClientInitErr
 	}
 
 	input := &ecr.GetAuthorizationTokenInput{}
@@ -32,8 +33,8 @@ func LoginToECR() (ecrLoginErr error) {
 			// Message from an error.
 			fmt.Println(getAuthTokenErr.Error())
 		}
-		return nil
+		return "", nil
 	}
-	fmt.Println(result)
-	return nil
+	authTokenValue := result.AuthorizationData[0].AuthorizationToken
+	return *authTokenValue, nil
 }
