@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/docker/docker/api/types"
 
@@ -16,8 +17,22 @@ import (
 
 //TODO: implement interface and struct to make these methods
 
+type Docker interface {
+	PullImage(image string, tag string) error
+	ListImages() error
+	TagImage(sourceImageTag string, targetImageTag string) (bool, error)
+	//TODO: figure out variadic stuff
+	PushImage(image string, tag string, options ...string) error
+}
+
+type DockerClient struct {
+	Image     string
+	Tag       string
+	AuthToken string
+}
+
 // PullImage - download remote Docker image
-func PullImage(imageTag string) (imagePullErr error) {
+func (i DockerClient) PullImage(imageTag string) (imagePullErr error) {
 	dockerCtx := context.Background()
 
 	dockerClient, initClientErr := config.DockerClientInit()
@@ -84,31 +99,42 @@ func TagImage(sourceImageTag string, targetImageTag string) (ok bool, imageTagEr
 }
 
 // PushImage - to private registry; image must already have tag which references the registry, e.g. registry.example.com/myimage:latest
-func PushImage(imageTag string, authToken string) (imagePushErr error) {
+//TODO: make authToken optional with variadic function
+//func PushImage(imageTag string, authToken string) (imagePushErr error) {
+func PushImage(imageTag string, authToken ...string) (imagePushErr error) {
 	dockerCtx := context.Background()
 
+	// Init Docker client
 	dockerClient, initClientErr := config.DockerClientInit()
 	if initClientErr != nil {
 		return initClientErr
 	}
 
-	// TODO: figure out how to login to ECR with token
-	//authConfig := types.AuthConfig{
-	//RegistryToken: authToken,
-	//}
-
-	authConfig := types.AuthConfig{
-		Username: "AWS",
-		Password: authToken,
+	// Decode authToken from base64 to string
+	decodedToken, base64DecodeErr := base64.StdEncoding.DecodeString(authToken)
+	if base64DecodeErr != nil {
+		return fmt.Errorf("cannot decode token value: %v", base64DecodeErr)
 	}
 
+	// Separate user and token values
+	token := strings.Split(string(decodedToken), ":")
+
+	// Build auth config with user and token values
+	authConfig := types.AuthConfig{
+		Username: token[0],
+		Password: token[1],
+	}
+
+	// Convert authConfig to JSON
 	encodedJSON, jsonMarshallErr := json.Marshal(authConfig)
 	if jsonMarshallErr != nil {
 		return fmt.Errorf("cannot marshal AuthConfig json: %v", jsonMarshallErr)
 	}
 
+	// Encode JSON back to base64 - docker client expects it in base64 encoded json format
 	authString := base64.URLEncoding.EncodeToString(encodedJSON)
 
+	// Push image with authentication
 	reader, imagePushErr := dockerClient.ImagePush(dockerCtx, imageTag, types.ImagePushOptions{RegistryAuth: authString})
 	if imagePushErr != nil {
 		return fmt.Errorf("cannot push image: %v, %v", imageTag, imagePushErr)
@@ -118,29 +144,5 @@ func PushImage(imageTag string, authToken string) (imagePushErr error) {
 	// Sends ImagePush output via reader - to show download progress
 	io.Copy(os.Stdout, reader)
 
-	return nil
-}
-
-// LoginToRegistry - authenticates docker to registry
-func LoginToRegistry(registryName, authToken string) (dockerLoginErr error) {
-	dockerCtx := context.Background()
-
-	dockerClient, initClientErr := config.DockerClientInit()
-	if initClientErr != nil {
-		return initClientErr
-	}
-
-	authConfig := types.AuthConfig{
-		Username: "AWS",
-		Password: authToken,
-	}
-
-	auth, dockerLoginErr := dockerClient.RegistryLogin(dockerCtx, authConfig)
-	if dockerLoginErr != nil {
-		return fmt.Errorf("cannot login to docker registry %v ; %v", registryName, dockerLoginErr)
-	}
-
-	//TODO: finish this
-	fmt.Println(auth)
 	return nil
 }

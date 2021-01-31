@@ -28,21 +28,18 @@ func main() {
 		log.Errorf("Error: %v", getEcrTokenErr)
 	}
 
-	//if dockerLoginErr := docker.LoginToRegistry(ecrAuthToken, ecrRegistry); dockerLoginErr != nil {
-	//log.Errorf("Error: %v", dockerLoginErr)
-	//}
-
-	for _, imageTag := range dockerImages {
+	for _, image := range dockerImages {
 		// Pull images
-		log.Infof("Pulling image [%v]", imageTag)
-		if imagePullErr := docker.PullImage(imageTag); imagePullErr != nil {
+		log.Infof("Pulling image [%v]", image)
+		if imagePullErr := docker.PullImage(image); imagePullErr != nil {
 			log.Errorf("Error: %v", imagePullErr)
 		}
 
-		ecrImageTag := ecrRegistry + "/" + imageTag
+		//ecrImageTag := ecrRegistry + "/" + imageTag
+		ecrImageTag := ecrRegistry
 
 		// Change image tag
-		ok, imageTagErr := docker.TagImage(imageTag, ecrImageTag)
+		ok, imageTagErr := docker.TagImage(image, ecrImageTag)
 		if !ok || imageTagErr != nil {
 			log.Errorf("Error: %v", imageTagErr)
 		}
