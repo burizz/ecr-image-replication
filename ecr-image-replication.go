@@ -28,6 +28,9 @@ func main() {
 		log.Errorf("Error: %v", getEcrTokenErr)
 	}
 
+	//TODO:
+	imageConfig := docker.Image{Image: "", Tag: "", AuthToken: ""}
+
 	for _, image := range dockerImages {
 		// Pull images
 		log.Infof("Pulling image [%v]", image)
@@ -36,18 +39,18 @@ func main() {
 		}
 
 		//ecrImageTag := ecrRegistry + "/" + imageTag
-		ecrImageTag := ecrRegistry
+		//ecrImageTag := ecrRegistry
 
-		// Change image tag
-		ok, imageTagErr := docker.TagImage(image, ecrImageTag)
-		if !ok || imageTagErr != nil {
-			log.Errorf("Error: %v", imageTagErr)
-		}
+		//// Change image tag
+		//ok, imageTagErr := docker.TagImage(image, ecrImageTag)
+		//if !ok || imageTagErr != nil {
+		//log.Errorf("Error: %v", imageTagErr)
+		//}
 
-		// Push image to ECR
-		if pushImageErr := docker.PushImage(ecrImageTag, ecrAuthToken); pushImageErr != nil {
-			log.Errorf("Error: %v", pushImageErr)
-		}
+		//// Push image to ECR
+		//if pushImageErr := docker.PushImage(ecrImageTag, ecrAuthToken); pushImageErr != nil {
+		//log.Errorf("Error: %v", pushImageErr)
+		//}
 	}
 
 	// List local images

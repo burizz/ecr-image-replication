@@ -17,22 +17,24 @@ import (
 
 //TODO: implement interface and struct to make these methods
 
-type Docker interface {
-	PullImage(image string, tag string) error
+type DockerClient interface {
+	//PullImage(image string, tag string) error
+	PullImage() error
 	ListImages() error
 	TagImage(sourceImageTag string, targetImageTag string) (bool, error)
 	//TODO: figure out variadic stuff
 	PushImage(image string, tag string, options ...string) error
 }
 
-type DockerClient struct {
+type Image struct {
 	Image     string
 	Tag       string
 	AuthToken string
 }
 
 // PullImage - download remote Docker image
-func (i DockerClient) PullImage(imageTag string) (imagePullErr error) {
+//func (d Docker) PullImage(image string) (imagePullErr error) {
+func (i Image) PullImage() (imagePullErr error) {
 	dockerCtx := context.Background()
 
 	dockerClient, initClientErr := config.DockerClientInit()
@@ -40,8 +42,11 @@ func (i DockerClient) PullImage(imageTag string) (imagePullErr error) {
 		return initClientErr
 	}
 
+	image := i.Image + ":" + i.Tag
+
 	// ImagePull makes an API request to Docker daemon to pull the image, we don't actually pull it and store it ourselves here
-	reader, dockerPullErr := dockerClient.ImagePull(dockerCtx, imageTag, types.ImagePullOptions{})
+	reader, dockerPullErr := dockerClient.ImagePull(dockerCtx, image, types.ImagePullOptions{})
+	// TODO: figure out a proper way to handle this closer
 	//defer reader.Close()
 	if dockerPullErr != nil {
 		return fmt.Errorf("cannot download image: %v", dockerPullErr)
@@ -60,7 +65,7 @@ func (i DockerClient) PullImage(imageTag string) (imagePullErr error) {
 }
 
 // ListImages - display local Docker images
-func ListImages() (listImagesErr error) {
+func (i Image) ListImages() (listImagesErr error) {
 	dockerCtx := context.Background()
 
 	dockerClient, initClientErr := config.DockerClientInit()
@@ -101,7 +106,7 @@ func TagImage(sourceImageTag string, targetImageTag string) (ok bool, imageTagEr
 // PushImage - to private registry; image must already have tag which references the registry, e.g. registry.example.com/myimage:latest
 //TODO: make authToken optional with variadic function
 //func PushImage(imageTag string, authToken string) (imagePushErr error) {
-func PushImage(imageTag string, authToken ...string) (imagePushErr error) {
+func PushImage(imageTag string, authToken string) (imagePushErr error) {
 	dockerCtx := context.Background()
 
 	// Init Docker client
