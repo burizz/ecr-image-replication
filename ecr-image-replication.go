@@ -55,13 +55,16 @@ func main() {
 		}
 
 		// Push image to ECR
-		if pushImageErr := dockerImageConfig.PushImage(ecrImageTag); pushImageErr != nil {
+		pushSuccess, pushImageErr := dockerImageConfig.PushImage(ecrImageTag)
+		if pushImageErr != nil {
 			log.Errorf("Error: %v", pushImageErr)
 		}
 
-		// Cleanup local image after push
-		if removeImageErr := dockerImageConfig.RemoveImage(ecrImageTag); removeImageErr != nil {
-			log.Errorf("Error: %v", removeImageErr)
+		// Cleanup local image after successfully pushed to ECR
+		if pushSuccess {
+			if removeImageErr := dockerImageConfig.RemoveImage(ecrImageTag); removeImageErr != nil {
+				log.Errorf("Error: %v", removeImageErr)
+			}
 		}
 	}
 

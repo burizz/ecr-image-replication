@@ -17,8 +17,8 @@ import (
 
 type DockerClient interface {
 	PullImage() error
-	TagImage(targetImageTag string) (bool, error)
-	PushImage(imageTag string) error
+	TagImage(targetImageTag string) error
+	PushImage(imageTag string) (imagePushSuccess bool, imagePushErr error)
 	RemoveImage(ecrImageTag string) error
 }
 
@@ -80,7 +80,7 @@ func (i Image) TagImage(targetImageTag string) (imageTagErr error) {
 
 // PushImage - to private registry; image must already have tag which references the registry,
 // e.g. registry.example.com/myimage:latest ; if AuthToken is provided will use it authenticate to registry
-func (i Image) PushImage(imageTag string) (imagePushErr error) {
+func (i Image) PushImage(imageTag string) (imagePushSuccess bool, imagePushErr error) {
 	dockerCtx := context.Background()
 
 	//imageTag := i.Image + ":" + i.Tag
@@ -89,7 +89,7 @@ func (i Image) PushImage(imageTag string) (imagePushErr error) {
 	// Init Docker client
 	dockerClient, initClientErr := config.DockerClientInit()
 	if initClientErr != nil {
-		return initClientErr
+		return false, initClientErr
 	}
 
 	var reader io.ReadCloser
@@ -100,7 +100,7 @@ func (i Image) PushImage(imageTag string) (imagePushErr error) {
 		// Decode authToken from base64 to string
 		decodedToken, base64DecodeErr := base64.StdEncoding.DecodeString(authToken)
 		if base64DecodeErr != nil {
-			return fmt.Errorf("cannot decode token value: %v", base64DecodeErr)
+			return false, fmt.Errorf("cannot decode token value: %v", base64DecodeErr)
 		}
 
 		// Separate user and token values
@@ -115,7 +115,7 @@ func (i Image) PushImage(imageTag string) (imagePushErr error) {
 		// Convert authConfig to JSON
 		encodedJSON, jsonMarshallErr := json.Marshal(authConfig)
 		if jsonMarshallErr != nil {
-			return fmt.Errorf("cannot marshal AuthConfig json: %v", jsonMarshallErr)
+			return false, fmt.Errorf("cannot marshal AuthConfig json: %v", jsonMarshallErr)
 		}
 
 		// Encode JSON back to base64 - docker client expects it in base64 encoded json format
@@ -125,14 +125,14 @@ func (i Image) PushImage(imageTag string) (imagePushErr error) {
 		log.Infof("pushing image with authentication:  %v", imageTag)
 		reader, imagePushErr = dockerClient.ImagePush(dockerCtx, imageTag, types.ImagePushOptions{RegistryAuth: authString})
 		if imagePushErr != nil {
-			return fmt.Errorf("cannot push image: %v, %v", imageTag, imagePushErr)
+			return false, fmt.Errorf("cannot push image: %v, %v", imageTag, imagePushErr)
 		}
 	} else {
 		// Push image with authentication
 		log.Infof("pushing image: %v", imageTag)
 		reader, imagePushErr = dockerClient.ImagePush(dockerCtx, imageTag, types.ImagePushOptions{})
 		if imagePushErr != nil {
-			return fmt.Errorf("cannot push image: %v, %v", imageTag, imagePushErr)
+			return false, fmt.Errorf("cannot push image: %v, %v", imageTag, imagePushErr)
 		}
 	}
 
@@ -140,7 +140,7 @@ func (i Image) PushImage(imageTag string) (imagePushErr error) {
 	// Sends ImagePush output via reader - to show upload progress
 	io.Copy(os.Stdout, reader)
 
-	return nil
+	return true, nil
 }
 
 // RemoveImage - cleanup local image
