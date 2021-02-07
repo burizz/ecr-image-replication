@@ -20,43 +20,50 @@ func init() {
 func main() {
 	// TODO: Get Docker images from env variable passed into Docker
 	//dockerImages = os.Getenv("DOCKER_IMAGES")
-	var dockerImages = []string{"hello-world:latest"}
-	var ecrRegistry = "235694435776.dkr.ecr.us-east-1.amazonaws.com/image-replication"
+	var dockerImages = map[string]string{
+		"hello-world": "latest",
+		"alpine":      "3.12.3",
+	}
+	var ecrRegistry = "235694435776.dkr.ecr.us-east-1.amazonaws.com"
+	var awsRegion = "us-east-1"
 
-	ecrAuthToken, getEcrTokenErr := aws.GetECRAuthToken()
+	ecrAuthToken, getEcrTokenErr := aws.GetECRAuthToken(awsRegion)
 	if getEcrTokenErr != nil {
 		log.Errorf("Error: %v", getEcrTokenErr)
 	}
 
-	//TODO:
-	imageConfig := docker.Image{Image: "", Tag: "", AuthToken: ""}
+	for image, tag := range dockerImages {
+		dockerImageConfig := docker.Image{Image: image, Tag: tag, AuthToken: ecrAuthToken}
 
-	for _, image := range dockerImages {
 		// Pull images
 		log.Infof("Pulling image [%v]", image)
-		if imagePullErr := docker.PullImage(image); imagePullErr != nil {
+		if imagePullErr := dockerImageConfig.PullImage(); imagePullErr != nil {
 			log.Errorf("Error: %v", imagePullErr)
 		}
 
-		//ecrImageTag := ecrRegistry + "/" + imageTag
-		//ecrImageTag := ecrRegistry
+		ecrImageTag := ecrRegistry + "/" + image + ":" + tag
 
-		//// Change image tag
-		//ok, imageTagErr := docker.TagImage(image, ecrImageTag)
-		//if !ok || imageTagErr != nil {
-		//log.Errorf("Error: %v", imageTagErr)
-		//}
+		// Change image tag
+		imageTagErr := dockerImageConfig.TagImage(ecrImageTag)
+		if imageTagErr != nil {
+			log.Errorf("Error: %v", imageTagErr)
+		}
 
-		//// Push image to ECR
-		//if pushImageErr := docker.PushImage(ecrImageTag, ecrAuthToken); pushImageErr != nil {
-		//log.Errorf("Error: %v", pushImageErr)
-		//}
+		// Create ECR repo if it doesn't exist; skip if it does
+		if ecrRepoCreateErr := aws.CreateECRRepo(awsRegion, image); ecrRepoCreateErr != nil {
+			log.Errorf("Error: %v", ecrRepoCreateErr)
+		}
+
+		// Push image to ECR
+		if pushImageErr := dockerImageConfig.PushImage(ecrImageTag); pushImageErr != nil {
+			log.Errorf("Error: %v", pushImageErr)
+		}
 	}
+
+	// TODO: cleanup local images
 
 	// List local images
 	if listImageErr := docker.ListImages(); listImageErr != nil {
 		log.Errorf("Error: %v", listImageErr)
 	}
-
-	// TODO: cleanup local images
 }

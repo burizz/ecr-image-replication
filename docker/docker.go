@@ -15,15 +15,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-//TODO: implement interface and struct to make these methods
-
 type DockerClient interface {
-	//PullImage(image string, tag string) error
 	PullImage() error
-	ListImages() error
-	TagImage(sourceImageTag string, targetImageTag string) (bool, error)
-	//TODO: figure out variadic stuff
-	PushImage(image string, tag string, options ...string) error
+	TagImage(targetImageTag string) (bool, error)
+	PushImage(imageTag string) error
 }
 
 type Image struct {
@@ -44,7 +39,7 @@ func (i Image) PullImage() (imagePullErr error) {
 
 	image := i.Image + ":" + i.Tag
 
-	// ImagePull makes an API request to Docker daemon to pull the image, we don't actually pull it and store it ourselves here
+	// ImagePull makes an API request to Docker daemon to pull the image, we don't actually implement the logic for pulling and storing it
 	reader, dockerPullErr := dockerClient.ImagePull(dockerCtx, image, types.ImagePullOptions{})
 	// TODO: figure out a proper way to handle this closer
 	//defer reader.Close()
@@ -64,8 +59,92 @@ func (i Image) PullImage() (imagePullErr error) {
 	return nil
 }
 
+// TagImage - changes image tag, e.g. registry.example.com/myimage:latest
+func (i Image) TagImage(targetImageTag string) (imageTagErr error) {
+	dockerCtx := context.Background()
+
+	dockerClient, initClientErr := config.DockerClientInit()
+	if initClientErr != nil {
+		return initClientErr
+	}
+
+	sourceImageTag := i.Image + ":" + i.Tag
+
+	if imageTagErr := dockerClient.ImageTag(dockerCtx, sourceImageTag, targetImageTag); imageTagErr != nil {
+		return fmt.Errorf("cannot tag image; source tag [%v] - target tag [%v]; Error: %v", sourceImageTag, targetImageTag, imageTagErr)
+	}
+
+	log.Infof("Image tagged successfully; source tag [%v] - target tag [%v]", sourceImageTag, targetImageTag)
+	return nil
+}
+
+// PushImage - to private registry; image must already have tag which references the registry,
+// e.g. registry.example.com/myimage:latest ; if AuthToken is provided will use it authenticate to registry
+func (i Image) PushImage(imageTag string) (imagePushErr error) {
+	dockerCtx := context.Background()
+
+	//imageTag := i.Image + ":" + i.Tag
+	authToken := i.AuthToken
+
+	// Init Docker client
+	dockerClient, initClientErr := config.DockerClientInit()
+	if initClientErr != nil {
+		return initClientErr
+	}
+
+	var reader io.ReadCloser
+
+	// TODO: Split logic for parsing and configuring AuthToken into a separate function
+	// If auth token provided use it; otherwise push image without auth token
+	if authToken != "" {
+		// Decode authToken from base64 to string
+		decodedToken, base64DecodeErr := base64.StdEncoding.DecodeString(authToken)
+		if base64DecodeErr != nil {
+			return fmt.Errorf("cannot decode token value: %v", base64DecodeErr)
+		}
+
+		// Separate user and token values
+		token := strings.Split(string(decodedToken), ":")
+
+		// Build auth config with user and token values
+		authConfig := types.AuthConfig{
+			Username: token[0],
+			Password: token[1],
+		}
+
+		// Convert authConfig to JSON
+		encodedJSON, jsonMarshallErr := json.Marshal(authConfig)
+		if jsonMarshallErr != nil {
+			return fmt.Errorf("cannot marshal AuthConfig json: %v", jsonMarshallErr)
+		}
+
+		// Encode JSON back to base64 - docker client expects it in base64 encoded json format
+		authString := base64.URLEncoding.EncodeToString(encodedJSON)
+
+		// Push image with authentication
+		log.Infof("pushing image with authentication:  %v", imageTag)
+		reader, imagePushErr = dockerClient.ImagePush(dockerCtx, imageTag, types.ImagePushOptions{RegistryAuth: authString})
+		if imagePushErr != nil {
+			return fmt.Errorf("cannot push image: %v, %v", imageTag, imagePushErr)
+		}
+	} else {
+		// Push image with authentication
+		log.Infof("pushing image: %v", imageTag)
+		reader, imagePushErr = dockerClient.ImagePush(dockerCtx, imageTag, types.ImagePushOptions{})
+		if imagePushErr != nil {
+			return fmt.Errorf("cannot push image: %v, %v", imageTag, imagePushErr)
+		}
+	}
+
+	// TODO: change this to logrus as well
+	// Sends ImagePush output via reader - to show upload progress
+	io.Copy(os.Stdout, reader)
+
+	return nil
+}
+
 // ListImages - display local Docker images
-func (i Image) ListImages() (listImagesErr error) {
+func ListImages() (listImagesErr error) {
 	dockerCtx := context.Background()
 
 	dockerClient, initClientErr := config.DockerClientInit()
@@ -82,72 +161,6 @@ func (i Image) ListImages() (listImagesErr error) {
 		log.Debugf("Image id: %v", image.ID)
 		log.Infof("Image tag: %v", image.RepoTags)
 	}
-
-	return nil
-}
-
-// TagImage - changes image tag, e.g. registry.example.com/myimage:latest
-func TagImage(sourceImageTag string, targetImageTag string) (ok bool, imageTagErr error) {
-	dockerCtx := context.Background()
-
-	dockerClient, initClientErr := config.DockerClientInit()
-	if initClientErr != nil {
-		return false, initClientErr
-	}
-
-	if imageTagErr := dockerClient.ImageTag(dockerCtx, sourceImageTag, targetImageTag); imageTagErr != nil {
-		return false, fmt.Errorf("cannot tag image; source tag [%v] - target tag [%v]; Error: %v", sourceImageTag, targetImageTag, imageTagErr)
-	}
-
-	log.Infof("Image tagged successfully; source tag [%v] - target tag [%v]", sourceImageTag, targetImageTag)
-	return true, nil
-}
-
-// PushImage - to private registry; image must already have tag which references the registry, e.g. registry.example.com/myimage:latest
-//TODO: make authToken optional with variadic function
-//func PushImage(imageTag string, authToken string) (imagePushErr error) {
-func PushImage(imageTag string, authToken string) (imagePushErr error) {
-	dockerCtx := context.Background()
-
-	// Init Docker client
-	dockerClient, initClientErr := config.DockerClientInit()
-	if initClientErr != nil {
-		return initClientErr
-	}
-
-	// Decode authToken from base64 to string
-	decodedToken, base64DecodeErr := base64.StdEncoding.DecodeString(authToken)
-	if base64DecodeErr != nil {
-		return fmt.Errorf("cannot decode token value: %v", base64DecodeErr)
-	}
-
-	// Separate user and token values
-	token := strings.Split(string(decodedToken), ":")
-
-	// Build auth config with user and token values
-	authConfig := types.AuthConfig{
-		Username: token[0],
-		Password: token[1],
-	}
-
-	// Convert authConfig to JSON
-	encodedJSON, jsonMarshallErr := json.Marshal(authConfig)
-	if jsonMarshallErr != nil {
-		return fmt.Errorf("cannot marshal AuthConfig json: %v", jsonMarshallErr)
-	}
-
-	// Encode JSON back to base64 - docker client expects it in base64 encoded json format
-	authString := base64.URLEncoding.EncodeToString(encodedJSON)
-
-	// Push image with authentication
-	reader, imagePushErr := dockerClient.ImagePush(dockerCtx, imageTag, types.ImagePushOptions{RegistryAuth: authString})
-	if imagePushErr != nil {
-		return fmt.Errorf("cannot push image: %v, %v", imageTag, imagePushErr)
-	}
-
-	// TODO: change this to logrus as well
-	// Sends ImagePush output via reader - to show download progress
-	io.Copy(os.Stdout, reader)
 
 	return nil
 }
