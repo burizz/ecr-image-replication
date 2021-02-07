@@ -19,6 +19,7 @@ type DockerClient interface {
 	PullImage() error
 	TagImage(targetImageTag string) (bool, error)
 	PushImage(imageTag string) error
+	RemoveImage(ecrImageTag string) error
 }
 
 type Image struct {
@@ -28,7 +29,6 @@ type Image struct {
 }
 
 // PullImage - download remote Docker image
-//func (d Docker) PullImage(image string) (imagePullErr error) {
 func (i Image) PullImage() (imagePullErr error) {
 	dockerCtx := context.Background()
 
@@ -140,6 +140,33 @@ func (i Image) PushImage(imageTag string) (imagePushErr error) {
 	// Sends ImagePush output via reader - to show upload progress
 	io.Copy(os.Stdout, reader)
 
+	return nil
+}
+
+// RemoveImage - cleanup local image
+func (i Image) RemoveImage(ecrImageTag string) (removeImageErr error) {
+	dockerCtx := context.Background()
+
+	dockerClient, initClientErr := config.DockerClientInit()
+	if initClientErr != nil {
+		return initClientErr
+	}
+
+	image := i.Image + ":" + i.Tag
+
+	// Cleanup ECR tagged image
+	_, removeImageErr = dockerClient.ImageRemove(dockerCtx, ecrImageTag, types.ImageRemoveOptions{})
+	if removeImageErr != nil {
+		return fmt.Errorf("cannot remove image: [%v] ; %v", image, removeImageErr)
+	}
+
+	// Cleanup main image
+	_, removeImageErr = dockerClient.ImageRemove(dockerCtx, image, types.ImageRemoveOptions{})
+	if removeImageErr != nil {
+		return fmt.Errorf("cannot remove image: [%v] ; %v", image, removeImageErr)
+	}
+
+	log.Infof("Cleanup local images: \n %v \n %v", ecrImageTag, image)
 	return nil
 }
 

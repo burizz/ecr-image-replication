@@ -58,9 +58,12 @@ func main() {
 		if pushImageErr := dockerImageConfig.PushImage(ecrImageTag); pushImageErr != nil {
 			log.Errorf("Error: %v", pushImageErr)
 		}
-	}
 
-	// TODO: cleanup local images
+		// Cleanup local image after push
+		if removeImageErr := dockerImageConfig.RemoveImage(ecrImageTag); removeImageErr != nil {
+			log.Errorf("Error: %v", removeImageErr)
+		}
+	}
 
 	// List local images
 	if listImageErr := docker.ListImages(); listImageErr != nil {
